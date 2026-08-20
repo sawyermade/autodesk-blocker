@@ -12,9 +12,11 @@ at any install directory and it will block every `.exe` it finds under it.
 ## Scripts
 
 ### `find_features.py`
-This will take multiple License.lic or lic.dat files and combine all the features as a set (no dupes) and write it to features.txt 
-```
-# Example: lic1.dat, lic2.dat, etc in lics/ directory you'd have to create
+This will take multiple License.lic or lic.dat files and combine all the features as a set (no dupes) and write it to features.txt
+
+Example: lic1.dat, lic2.dat, etc in lics/ directory you'd have to create
+
+```bash
 python3 find_features.py lics/
 ```
 
