@@ -9,7 +9,13 @@
 
 $roots = New-Object System.Collections.Generic.List[string]
 
-foreach ($p in @($env:ProgramFiles, ${env:ProgramFiles(x86)}, $env:ProgramData)) {
+foreach ($p in @(
+    $env:ProgramFiles,
+    ${env:ProgramFiles(x86)},
+    $env:ProgramData,
+    $env:CommonProgramFiles,
+    ${env:CommonProgramFiles(x86)}
+)) {
     if ($p) { $roots.Add($p) }
 }
 
@@ -20,7 +26,7 @@ Get-ChildItem -LiteralPath 'C:\Users' -Directory -Force -ErrorAction SilentlyCon
 
 $matches = foreach ($root in $roots) {
     if (Test-Path -LiteralPath $root) {
-        Get-ChildItem -LiteralPath $root -Directory -Force -ErrorAction SilentlyContinue |
+        Get-ChildItem -LiteralPath $root -Directory -Force -Recurse -ErrorAction SilentlyContinue |
             Where-Object { $_.Name -match 'Autodesk|ADSK' }
     }
 }
@@ -28,10 +34,14 @@ $matches = foreach ($root in $roots) {
 $paths = $matches | Select-Object -ExpandProperty FullName -Unique | Sort-Object
 
 $outFile = Join-Path $PSScriptRoot 'block-list.txt'
+# Windows PowerShell 5.1's -Encoding UTF8 writes a BOM, which cmd's
+# `for /f` in block-list.bat does not strip -- it corrupts the first
+# line of the file. Write plain UTF-8 without a BOM instead.
+$utf8NoBom = New-Object System.Text.UTF8Encoding($false)
 
 if (-not $paths) {
     Write-Host 'No Autodesk-related directories found.'
-    Set-Content -LiteralPath $outFile -Value @() -Encoding UTF8
+    [System.IO.File]::WriteAllLines($outFile, [string[]]@(), $utf8NoBom)
     return
 }
 
@@ -43,7 +53,7 @@ foreach ($path in $paths) {
     Write-Host ("  {0}  [{1} .exe file(s)]" -f $path, $exeCount)
 }
 
-Set-Content -LiteralPath $outFile -Value $paths -Encoding UTF8
+[System.IO.File]::WriteAllLines($outFile, [string[]]$paths, $utf8NoBom)
 
 Write-Host ''
 Write-Host "Wrote $($paths.Count) path(s) to $outFile"

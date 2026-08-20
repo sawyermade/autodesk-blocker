@@ -17,7 +17,7 @@ setlocal EnableDelayedExpansion
 net session >nul 2>&1
 if %errorlevel% neq 0 (
     echo This script requires Administrator privileges. Requesting elevation...
-    powershell -NoProfile -Command "Start-Process -FilePath '%~f0' -ArgumentList '\"%~1\"' -Verb RunAs"
+    powershell -NoProfile -Command "Start-Process -FilePath '%~f0' -ArgumentList @('%~1') -Verb RunAs"
     exit /b
 )
 
@@ -46,12 +46,21 @@ echo Scanning "%TARGET_DIR%" for .exe files (recursive, including hidden)...
 echo.
 
 set /a COUNT=0
+set /a FAILCOUNT=0
 
 for /f "usebackq delims=" %%F in (`powershell -NoProfile -Command "Get-ChildItem -LiteralPath '%TARGET_DIR%' -Recurse -Force -File -Filter *.exe -ErrorAction SilentlyContinue | Select-Object -ExpandProperty FullName"`) do (
     set "EXE=%%F"
     echo Blocking: !EXE!
-    netsh advfirewall firewall add rule name="%RULE_IN%" dir=in action=block program="!EXE!" enable=yes profile=any >nul
-    netsh advfirewall firewall add rule name="%RULE_OUT%" dir=out action=block program="!EXE!" enable=yes profile=any >nul
+    netsh advfirewall firewall add rule name="%RULE_IN%" dir=in action=block program="!EXE!" enable=yes profile=any
+    if errorlevel 1 (
+        echo   FAILED to add inbound rule for "!EXE!"
+        set /a FAILCOUNT+=1
+    )
+    netsh advfirewall firewall add rule name="%RULE_OUT%" dir=out action=block program="!EXE!" enable=yes profile=any
+    if errorlevel 1 (
+        echo   FAILED to add outbound rule for "!EXE!"
+        set /a FAILCOUNT+=1
+    )
     set /a COUNT+=1
 )
 
@@ -59,7 +68,12 @@ echo.
 if !COUNT! equ 0 (
     echo No .exe files were found under "%TARGET_DIR%".
 ) else (
-    echo Done. Blocked !COUNT! executable^(s^) under "%TARGET_DIR%".
+    echo Done. Processed !COUNT! executable^(s^) under "%TARGET_DIR%".
+    if !FAILCOUNT! gtr 0 (
+        echo !FAILCOUNT! rule^(s^) FAILED to add - see errors above.
+    ) else (
+        echo All rules added successfully.
+    )
     echo Run status.bat to review active rules, or unblock.bat to remove them.
 )
 
